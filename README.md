@@ -1,39 +1,144 @@
-# node-kafka-conduktor
+# poc-kafka-conduktor-microservices
 
-`cd conductor && ./launch.sh`
+> A distributed event-driven microservices architecture featuring Fastify, KafkaJS, MongoDB persistence, and Conduktor Platform observability.
 
-login into conduktor @ `http://localhost:8080/home/`
+**Inception (First Commit):** `2023-01-08` • **Batch / Horizon:** `batch-2023` • **Architecture Domain:** `Distributed Event Streaming / Kafka & Conduktor`
 
-`cd services/messages && npm i` and `cd services/notifications && npm i`
+---
 
-have mongodb running or set up a docker container
+## 📌 Architecture & Overview
 
-- run producer service `services/messages` `npm run dev`
+`node-kafka-conduktor` demonstrates an asynchronous event-driven microservice topology combining producer and consumer services coordinated through Apache Kafka and monitored via Conduktor Platform.
 
-- run consumer service `services/notifications` `npm run dev`
+The architecture comprises two decoupled Node.js services alongside a production-ready container orchestration stack:
+1. **Messages Service (Producer):** Fastify REST microservice (port 3000) that accepts message payloads, persists state in MongoDB, and publishes domain events (`message-created`) to an Apache Kafka topic.
+2. **Notifications Service (Consumer):** Independent Fastify consumer (port 4000) that subscribes to `message-created`, processes event streams asynchronously, and manages local persistence.
+3. **Conduktor Ecosystem:** Containerized Kafka broker, Zookeeper, Schema Registry, and Conduktor Platform (port 8080) for visual partition inspection, consumer lag monitoring, and broker telemetry via Prometheus JMX.
 
-create messages using postman collection or thr conduktor ui
+```
+                              +-----------------------------------------------+
+                              |             node-kafka-conduktor              |
+                              |                                               |
+[ HTTP Client / Postman ]     |  +-----------------------------------------+  |
+       |                      |  | Messages Service (Port: 3000 - Producer)|  |
+       | POST / (text)        |  +--------------------+--------------------+  |
+       v                      |                       |                       |
++---------------------------+ |                       +--------+              |
+| Fastify + JSON Schema     +-+-> [ MongoDB (DB) ]             | Publish      |
++---------------------------+ |                                v              |
+                              |                 +---------------------------+ |
+                              |                 | Apache Kafka Broker (9092)| |
+                              |                 | Topic: 'message-created'  | |
+                              |                 +-------------+-------------+ |
+                              |                               |               |
+                              |                               | Consume Event |
+                              |                               v               |
+                              |  +-----------------------------------------+  |
+                              |  | Notifications Service (Port: 4000)      |  |
+                              |  | (Consumer Group: notifications-app)     |  |
+                              |  +--------------------+--------------------+  |
+                              |                       |                       |
+                              |                       v                       |
+                              |                [ MongoDB (DB) ]               |
+                              +-----------------------------------------------+
+                                                      |
+                                                      v
+                                        +---------------------------+
+                                        | Conduktor Platform (8080) |
+                                        | & Prometheus JMX Exporter |
+                                        +---------------------------+
+```
 
-shout down docker `cd conductor && docker-compose down`
+* **Context:** Distributed systems reference architecture designed to evaluate Kafka producer-consumer lifecycles, schema management, and UI-driven cluster observability via Conduktor Platform.
+* **Key Patterns:**
+  * **Asynchronous Event-Driven Messaging:** Decoupling write ingestion from notification processing via Apache Kafka pub/sub topics.
+  * **Consumer Group Load Balancing:** Scalable message distribution across consumer instances utilizing Kafka consumer group semantics.
+  * **Graceful Teardown Lifecycle:** Comprehensive process signal listeners (`SIGINT`, `SIGTERM`, `SIGQUIT`) ensuring clean disconnects of Kafka producers/consumers and Fastify HTTP sockets.
+  * **Centralized Cluster Observability:** Web UI partition inspection, message replay, and consumer lag analysis via Conduktor Platform.
 
-### Kafka terms and definitions
+---
 
-Producer - A producer is a client that sends messages to a topic on the Kafka cluster
+## 🛠 Tech Stack
 
-Consumer - A consumer is a client that reads messages from a topic on the Kafka cluster
+* **Streaming & Transport:** Apache Kafka (Confluent / Conduktor Platform 1.6.0), KafkaJS 2.2.3, Zookeeper, Schema Registry
+* **Runtime & Framework:** Node.js (>= 18), Fastify 4.10.2, TypeScript 4.9.3, `tsx` 3.12.1
+* **Database & ODM:** MongoDB, Mongoose 6.7.5
+* **Validation & Tooling:** `json-schema-to-ts` 2.6.2, `nanoid` 4.0.0, Docker Compose, Postman Collections
 
-Topic - A topic is a category or feed name to which records are published. Topics in Kafka are always multi-subscriber
+---
 
-Broker - A broker is a server that hosts a topic. Each broker is identified by a unique id
+## ✨ Features & Endpoints
 
-Partition - A partition is an ordered, immutable sequence of records that is continually appended to a file. The records in the partitions are each assigned a sequential id number called the offset that uniquely identifies each record within the partition.
+* **Message Production API:** Fastify endpoint validating request schemas with `json-schema-to-ts` and publishing events to Kafka.
+* **Stream Ingestion Consumer:** Real-time event subscription loop processing messages from `message-created`.
+* **Conduktor Observability Suite:** Web console (port 8080) providing topic creation, partition rebalancing telemetry, and message payload browsing.
+* **Docker Compose Topology:** Complete multi-container environment defining Kafka, Zookeeper, Conduktor Platform, and monitoring agents.
 
-Replication - Replication is the process of duplicating data across multiple brokers. Replication provides fault tolerance and high availability. A topic can have multiple partitions, and each partition can have multiple replicas.
+### Microservice Interfaces & Endpoints
 
-Consumer Group - A consumer group is a group of consumers that cooperate to consume messages from a set of topics. Each consumer in a group can process the messages in parallel. The Kafka cluster ensures that each message is delivered to one consumer in each subscribing consumer group.
+| Service | Port | Protocol / Method | Endpoint / Topic | Description |
+|---|---|---|---|---|
+| `messages` | 3000 | `POST` | `/` | Ingest message payload, save to MongoDB, and publish event. |
+| `kafka` | 9092 | `TOPIC` | `message-created` | Event bus topic carrying JSON serialized message records. |
+| `notifications`| 4000 | `CONSUMER`| `message-created` | Asynchronously processes incoming message events. |
+| `conduktor` | 8080 | `HTTP` | `/` | Web administration UI for Kafka cluster operations. |
 
-Offset - The offset is a unique identifier for a message within a partition. The offset is assigned when a producer publishes a message to a partition. The offset is used by the consumer to determine the message to process next.
+---
 
-Leader - The leader is the server that is currently the active controller for a partition. The leader handles all read and write requests for the partition. Only the leader can become a follower.
+## 🚀 Getting Started
 
-Follower - The follower is a passive server that replicates the log of the leader. The follower can become the leader if the current leader fails
+### Prerequisites
+
+* Docker & Docker Compose
+* Node.js `>= 18.0.0`
+* npm or pnpm
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/fabogit/poc-kafka-conduktor-microservices.git
+cd poc-kafka-conduktor-microservices
+
+# Install dependencies in both microservices
+cd services/messages && npm install
+cd ../notifications && npm install
+cd ../..
+```
+
+### Running Kafka Infrastructure via Docker
+
+```bash
+# Start Kafka broker, Zookeeper, and Conduktor Platform
+cd conduktor
+docker compose up -d
+cd ..
+```
+
+Access the Conduktor Platform web interface at [http://localhost:8080](http://localhost:8080).
+
+### Running Microservices
+
+```bash
+# Terminal 1: Launch Messages Producer Service (Port 3000)
+cd services/messages
+npm run dev
+
+# Terminal 2: Launch Notifications Consumer Service (Port 4000)
+cd services/notifications
+npm run dev
+```
+
+### Publishing a Test Message
+
+```bash
+curl -X POST http://localhost:3000/ \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello Conduktor Event Bus"}'
+```
+
+---
+
+## 📄 License & Author
+
+Developed by [@fabogit](https://github.com/fabogit).
